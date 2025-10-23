@@ -177,45 +177,47 @@ func (c *Client) Close() error {
 	return nil
 }
 
-// executeCommand executes a VirtualHere command using the -t flag
-// It returns the raw output and any error that occurred
+// executeCommand sends a command to the VirtualHere client via named pipe (Windows)
+// or Unix socket (Linux/macOS) and returns the response
 func (c *Client) executeCommand(command string) (*CommandResult, error) {
-	cmd := exec.Command(c.binaryPath, "-t", command)
+	result := &CommandResult{}
 
-	output, err := cmd.CombinedOutput()
-	outputStr := strings.TrimSpace(string(output))
+	var response string
+	var err error
 
-	result := &CommandResult{
-		Output: outputStr,
+	if runtime.GOOS == "windows" {
+		response, err = c.executeCommandWindows(command)
+	} else {
+		response, err = c.executeCommandUnix(command)
 	}
 
-	// Check the exit code
 	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			switch exitErr.ExitCode() {
-			case 1:
-				// FAILED - command failed (e.g., trying to use an in-use device)
-				result.Success = false
-				result.Error = ErrCommandFailed
-				return result, nil
-			case 2:
-				// ERROR - error occurred (e.g., server doesn't exist, invalid address)
-				result.Success = false
-				// Try to extract the error message
-				if strings.HasPrefix(outputStr, "ERROR:") {
-					result.Error = fmt.Errorf("%s", strings.TrimPrefix(outputStr, "ERROR:"))
-				} else {
-					result.Error = fmt.Errorf("%s", outputStr)
-				}
-				return result, nil
-			default:
-				return result, fmt.Errorf("command execution failed with exit code %d: %w", exitErr.ExitCode(), err)
-			}
-		}
-		return result, fmt.Errorf("command execution failed: %w", err)
+		return nil, fmt.Errorf("failed to communicate with client: %w", err)
 	}
 
-	// Exit code 0 means OK
+	// Parse the response
+	response = strings.TrimSpace(response)
+	result.Output = response
+
+	// Check response status
+	if response == "OK" {
+		result.Success = true
+		return result, nil
+	}
+
+	if response == "FAILED" {
+		result.Success = false
+		result.Error = ErrCommandFailed
+		return result, nil
+	}
+
+	if strings.HasPrefix(response, "ERROR:") {
+		result.Success = false
+		result.Error = fmt.Errorf("%s", strings.TrimSpace(strings.TrimPrefix(response, "ERROR:")))
+		return result, nil
+	}
+
+	// If response is not OK/FAILED/ERROR, it's likely data (e.g., from LIST command)
 	result.Success = true
 	return result, nil
 }
