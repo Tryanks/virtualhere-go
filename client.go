@@ -11,10 +11,13 @@ import (
 
 // Client represents a VirtualHere USB client controller
 type Client struct {
-	binaryPath string
-	serviceCmd *exec.Cmd
-	serviceMu  sync.Mutex
-	runService bool
+	binaryPath           string
+	serviceCmd           *exec.Cmd
+	serviceMu            sync.Mutex
+	runService           bool
+	onProcessTerminated  func()
+	processMonitorDone   chan struct{}
+	processMonitorCancel chan struct{}
 }
 
 // ClientOption is a function that configures a Client
@@ -24,6 +27,16 @@ type ClientOption func(*Client)
 func WithService(enable bool) ClientOption {
 	return func(c *Client) {
 		c.runService = enable
+	}
+}
+
+// WithOnProcessTerminated sets a callback function that will be called when the
+// managed service process is terminated externally or by the user.
+// The client will automatically cleanup resources when this occurs.
+// This option only works when WithService(true) is enabled.
+func WithOnProcessTerminated(callback func()) ClientOption {
+	return func(c *Client) {
+		c.onProcessTerminated = callback
 	}
 }
 
@@ -94,7 +107,40 @@ func (c *Client) startService() error {
 		return fmt.Errorf("failed to start service: %w", err)
 	}
 
+	// Start monitoring the process for termination
+	c.processMonitorCancel = make(chan struct{})
+	c.processMonitorDone = make(chan struct{})
+	go c.monitorProcess()
+
 	return nil
+}
+
+// monitorProcess monitors the service process for termination and triggers cleanup
+func (c *Client) monitorProcess() {
+	defer close(c.processMonitorDone)
+
+	// Wait for process to exit or cancellation
+	processDone := make(chan error, 1)
+	go func() {
+		processDone <- c.serviceCmd.Wait()
+	}()
+
+	select {
+	case <-processDone:
+		// Process terminated externally or by EXIT command
+		c.serviceMu.Lock()
+		c.serviceCmd = nil
+		callback := c.onProcessTerminated
+		c.serviceMu.Unlock()
+
+		// Call the termination callback if set
+		if callback != nil {
+			callback()
+		}
+	case <-c.processMonitorCancel:
+		// Close() was called, normal shutdown
+		return
+	}
 }
 
 // Close stops the background service if running
@@ -104,6 +150,11 @@ func (c *Client) Close() error {
 
 	if c.serviceCmd == nil {
 		return nil
+	}
+
+	// Signal the monitor to stop
+	if c.processMonitorCancel != nil {
+		close(c.processMonitorCancel)
 	}
 
 	// Try graceful shutdown first using EXIT command
@@ -117,6 +168,11 @@ func (c *Client) Close() error {
 	// Wait for the process to exit
 	_ = c.serviceCmd.Wait()
 	c.serviceCmd = nil
+
+	// Wait for monitor goroutine to finish
+	if c.processMonitorDone != nil {
+		<-c.processMonitorDone
+	}
 
 	return nil
 }
