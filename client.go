@@ -4,17 +4,33 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
+	"sync"
 )
 
 // Client represents a VirtualHere USB client controller
 type Client struct {
 	binaryPath string
+	serviceCmd *exec.Cmd
+	serviceMu  sync.Mutex
+	runService bool
+}
+
+// ClientOption is a function that configures a Client
+type ClientOption func(*Client)
+
+// WithService configures the client to run as a background service
+func WithService(enable bool) ClientOption {
+	return func(c *Client) {
+		c.runService = enable
+	}
 }
 
 // NewClient creates a new VirtualHere client controller with the specified binary path
 // The binary should be the path to vhui64.exe (Windows), vhclientx86_64 (Linux), or vhclient (macOS)
-func NewClient(binaryPath string) (*Client, error) {
+// Options can be provided to configure the client behavior
+func NewClient(binaryPath string, opts ...ClientOption) (*Client, error) {
 	// Verify the binary exists
 	if _, err := os.Stat(binaryPath); os.IsNotExist(err) {
 		return nil, fmt.Errorf("%w: %s", ErrBinaryNotFound, binaryPath)
@@ -34,9 +50,75 @@ func NewClient(binaryPath string) (*Client, error) {
 		}
 	}
 
-	return &Client{
+	client := &Client{
 		binaryPath: binaryPath,
-	}, nil
+	}
+
+	// Apply options
+	for _, opt := range opts {
+		opt(client)
+	}
+
+	// Start service if enabled
+	if client.runService {
+		if err := client.startService(); err != nil {
+			return nil, fmt.Errorf("failed to start service: %w", err)
+		}
+	}
+
+	return client, nil
+}
+
+// startService starts the VirtualHere client as a background service
+func (c *Client) startService() error {
+	c.serviceMu.Lock()
+	defer c.serviceMu.Unlock()
+
+	if c.serviceCmd != nil {
+		return fmt.Errorf("service is already running")
+	}
+
+	// Start the client based on platform:
+	// - Linux: Use -n flag for daemon mode (Console Client)
+	// - Windows/macOS: Start without parameters (GUI Client runs in background)
+	if runtime.GOOS == "linux" {
+		// Linux Console Client uses -n for daemon mode
+		c.serviceCmd = exec.Command(c.binaryPath, "-n")
+	} else {
+		// Windows/macOS GUI clients run in background without -n
+		c.serviceCmd = exec.Command(c.binaryPath)
+	}
+
+	if err := c.serviceCmd.Start(); err != nil {
+		c.serviceCmd = nil
+		return fmt.Errorf("failed to start service: %w", err)
+	}
+
+	return nil
+}
+
+// Close stops the background service if running
+func (c *Client) Close() error {
+	c.serviceMu.Lock()
+	defer c.serviceMu.Unlock()
+
+	if c.serviceCmd == nil {
+		return nil
+	}
+
+	// Try graceful shutdown first using EXIT command
+	if err := c.Exit(); err != nil {
+		// If EXIT command fails, force kill the process
+		if killErr := c.serviceCmd.Process.Kill(); killErr != nil {
+			return fmt.Errorf("failed to kill service process: %w", killErr)
+		}
+	}
+
+	// Wait for the process to exit
+	_ = c.serviceCmd.Wait()
+	c.serviceCmd = nil
+
+	return nil
 }
 
 // executeCommand executes a VirtualHere command using the -t flag
