@@ -3,20 +3,13 @@ package main
 import (
 	"fmt"
 	"log"
-	"os"
 
 	vh "github.com/Tryanks/virtualhere-go"
 )
 
 func main() {
-	// Get binary path from command line argument or use default
-	binaryPath := "./vhclient"
-	if len(os.Args) > 1 {
-		binaryPath = os.Args[1]
-	}
-
-	// Create VirtualHere client
-	client, err := vh.NewClient(binaryPath)
+	// Create VirtualHere pipe client (connects to running service)
+	client, err := vh.NewPipeClient()
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)
 	}

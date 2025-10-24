@@ -10,21 +10,20 @@ import (
 
 func main() {
 	// Check for required arguments
-	if len(os.Args) < 3 {
-		fmt.Println("Usage: go run use_device.go <binary_path> <device_address> [password]")
-		fmt.Println("Example: go run use_device.go ./vhclient raspberrypi.114")
+	if len(os.Args) < 2 {
+		fmt.Println("Usage: go run use_device.go <device_address> [password]")
+		fmt.Println("Example: go run use_device.go raspberrypi.114")
 		os.Exit(1)
 	}
 
-	binaryPath := os.Args[1]
-	deviceAddress := os.Args[2]
+	deviceAddress := os.Args[1]
 	password := ""
-	if len(os.Args) > 3 {
-		password = os.Args[3]
+	if len(os.Args) > 2 {
+		password = os.Args[2]
 	}
 
-	// Create VirtualHere client
-	client, err := vh.NewClient(binaryPath)
+	// Create VirtualHere pipe client (connects to running service)
+	client, err := vh.NewPipeClient()
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)
 	}

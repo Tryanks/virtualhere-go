@@ -10,10 +10,10 @@ import (
 
 func main() {
 	// Check for required arguments
-	if len(os.Args) < 3 {
+	if len(os.Args) < 2 {
 		fmt.Println("VirtualHere - Auto-Use Configuration Example")
 		fmt.Println("=============================================\n")
-		fmt.Println("Usage: go run auto_use.go <binary_path> <command> [arguments]")
+		fmt.Println("Usage: go run auto_use.go <command> [arguments]")
 		fmt.Println("\nCommands:")
 		fmt.Println("  hub <hub_address>      - Toggle auto-use for all devices on a hub")
 		fmt.Println("  device <device_addr>   - Toggle auto-use for a device on any port")
@@ -21,17 +21,16 @@ func main() {
 		fmt.Println("  all                    - Enable auto-use for all devices")
 		fmt.Println("  clear                  - Clear all auto-use settings")
 		fmt.Println("\nExamples:")
-		fmt.Println("  go run auto_use.go ./vhclient hub raspberrypi:7575")
-		fmt.Println("  go run auto_use.go ./vhclient device raspberrypi.114")
-		fmt.Println("  go run auto_use.go ./vhclient all")
+		fmt.Println("  go run auto_use.go hub raspberrypi:7575")
+		fmt.Println("  go run auto_use.go device raspberrypi.114")
+		fmt.Println("  go run auto_use.go all")
 		os.Exit(1)
 	}
 
-	binaryPath := os.Args[1]
-	command := os.Args[2]
+	command := os.Args[1]
 
-	// Create VirtualHere client
-	client, err := vh.NewClient(binaryPath)
+	// Create VirtualHere pipe client (connects to running service)
+	client, err := vh.NewPipeClient()
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)
 	}
@@ -41,10 +40,10 @@ func main() {
 
 	switch command {
 	case "hub":
-		if len(os.Args) < 4 {
+		if len(os.Args) < 3 {
 			log.Fatal("Hub address is required. Example: raspberrypi:7575")
 		}
-		hubAddress := os.Args[3]
+		hubAddress := os.Args[2]
 		fmt.Printf("Toggling auto-use for hub: %s\n", hubAddress)
 		err = client.AutoUseHub(hubAddress)
 		if err != nil {
@@ -53,10 +52,10 @@ func main() {
 		fmt.Println("✓ Auto-use toggled successfully!")
 
 	case "device":
-		if len(os.Args) < 4 {
+		if len(os.Args) < 3 {
 			log.Fatal("Device address is required. Example: raspberrypi.114")
 		}
-		deviceAddress := os.Args[3]
+		deviceAddress := os.Args[2]
 		fmt.Printf("Toggling auto-use for device: %s (any port)\n", deviceAddress)
 		err = client.AutoUseDevice(deviceAddress)
 		if err != nil {
@@ -65,10 +64,10 @@ func main() {
 		fmt.Println("✓ Auto-use toggled successfully!")
 
 	case "port":
-		if len(os.Args) < 4 {
+		if len(os.Args) < 3 {
 			log.Fatal("Device address is required. Example: raspberrypi.114")
 		}
-		deviceAddress := os.Args[3]
+		deviceAddress := os.Args[2]
 		fmt.Printf("Toggling auto-use for port: %s (any device)\n", deviceAddress)
 		err = client.AutoUsePort(deviceAddress)
 		if err != nil {

@@ -10,18 +10,17 @@ import (
 
 func main() {
 	// Check for required arguments
-	if len(os.Args) < 3 {
-		fmt.Println("Usage: go run manual_hub.go <binary_path> <hub_address>")
-		fmt.Println("Example: go run manual_hub.go ./vhclient 192.168.1.100:7575")
-		fmt.Println("Example: go run manual_hub.go ./vhclient myserver.easyfind.com")
+	if len(os.Args) < 2 {
+		fmt.Println("Usage: go run manual_hub.go <hub_address>")
+		fmt.Println("Example: go run manual_hub.go 192.168.1.100:7575")
+		fmt.Println("Example: go run manual_hub.go myserver.easyfind.com")
 		os.Exit(1)
 	}
 
-	binaryPath := os.Args[1]
-	hubAddress := os.Args[2]
+	hubAddress := os.Args[1]
 
-	// Create VirtualHere client
-	client, err := vh.NewClient(binaryPath)
+	// Create VirtualHere pipe client (connects to running service)
+	client, err := vh.NewPipeClient()
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)
 	}
