@@ -40,6 +40,22 @@ func WithOnProcessTerminated(callback func()) ClientOption {
 	}
 }
 
+// NewPipeClient creates a new VirtualHere client that communicates via IPC (named pipe/socket)
+// without requiring a binary path. This is the recommended method when you want to communicate
+// with an already-running VirtualHere service.
+//
+// The client will connect to:
+//   - Windows: Named pipe at \\.\pipe\vhclient
+//   - Linux/macOS: Unix sockets at /tmp/vhclient and /tmp/vhclient_response
+//
+// Note: WithService option is not supported with NewPipeClient since no binary path is provided.
+func NewPipeClient() (*Client, error) {
+	client := &Client{
+		binaryPath: "", // No binary path needed for pipe-only communication
+	}
+	return client, nil
+}
+
 // NewClient creates a new VirtualHere client controller with the specified binary path
 // The binary should be the path to vhui64.exe (Windows), vhclientx86_64 (Linux), or vhclient (macOS)
 // Options can be provided to configure the client behavior

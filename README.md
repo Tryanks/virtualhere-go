@@ -61,7 +61,9 @@ vhui64.exe -i
 vhui64.exe
 ```
 
-### Basic Example
+### Basic Example (Recommended)
+
+The simplest way to use the library is with `NewPipeClient()`, which connects to an already-running VirtualHere service:
 
 ```go
 package main
@@ -74,10 +76,9 @@ import (
 )
 
 func main() {
-    // Create a new client
-    // The binary path is only used if you want to manage the service
-    // For communication, it uses IPC (named pipe on Windows, Unix sockets on Linux/macOS)
-    client, err := vh.NewClient("/path/to/vhclient")
+    // Create a pipe client (connects to running VirtualHere service)
+    // No binary path needed - uses platform-specific IPC automatically
+    client, err := vh.NewPipeClient()
     if err != nil {
         log.Fatal(err)
     }
@@ -111,6 +112,18 @@ func main() {
         log.Fatal(err)
     }
 }
+```
+
+### Alternative: Using NewClient with Binary Path
+
+If you need to manage the VirtualHere service lifecycle or need the binary path:
+
+```go
+client, err := vh.NewClient("/path/to/vhclient")
+if err != nil {
+    log.Fatal(err)
+}
+// Use the client same as above...
 ```
 
 ### Running Client as a Managed Service
